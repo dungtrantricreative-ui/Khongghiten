@@ -20,7 +20,7 @@ const MODEL = "gemini-2.5-flash";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
-// Lưu lịch sử theo sessionId
+// Lưu lịch sử theo sessionId: [{ role, parts }, ...]
 const sessions = new Map();
 
 function createSession() {

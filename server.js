@@ -3,10 +3,10 @@ import cors from "cors";
 import multer from "multer";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
-// Cho phần chat
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Cho phần upload file
+// Chat
+import { GoogleGenerativeAI } from "@google/generative-ai";
+// Upload file (Node backend)
 import { GoogleAIFileManager } from "@google/generative-ai/server";
 
 const app = express();
@@ -20,7 +20,7 @@ const MODEL = "gemini-2.5-flash";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
-// Lưu lịch sử theo sessionId: [{ role, parts }, ...]
+// Lưu lịch sử theo sessionId
 const sessions = new Map();
 
 function createSession() {
@@ -30,7 +30,6 @@ function createSession() {
 }
 
 function trimHistory(history, maxTurns = 40) {
-  // Mỗi lượt gồm user+model → 2 entries
   if (history.length > maxTurns * 2) {
     return history.slice(-maxTurns * 2);
   }
@@ -67,8 +66,7 @@ app.post("/api/upload", upload.array("files", 10), async (req, res) => {
         mimeType: result.file.mimeType,
         displayName: result.file.displayName
       });
-      // Xóa file tạm sau khi đẩy lên
-      fs.unlink(f.path).catch(() => {});
+      await fs.unlink(f.path).catch(() => {});
     }
     res.json({ files: uploaded });
   } catch (err) {
@@ -88,7 +86,6 @@ app.post("/api/chat", async (req, res) => {
     const history = sessions.get(sessionId) || [];
     const model = genAI.getGenerativeModel({ model: MODEL });
 
-    // Xây parts cho lượt user hiện tại
     const userParts = [];
     if (text) userParts.push({ text });
     for (const f of files) {
@@ -97,13 +94,11 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    // Khởi tạo chat từ lịch sử (stateless per request)
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(userParts);
     const response = await result.response;
     const output = response.text();
 
-    // Cập nhật lịch sử
     history.push({ role: "user", parts: userParts });
     history.push({ role: "model", parts: [{ text: output }] });
     sessions.set(sessionId, trimHistory(history));

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cuộc trò chuyện mới</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --card: #17171b;
+      --muted: #9aa3af;
+      --text: #f4f5f7;
+      --accent: linear-gradient(135deg, #7c3aed, #06b6d4);
+      --btn: #222229;
+      --primary: #8b5cf6;
+      --green: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .app {
+      max-width: 520px; margin: 0 auto; min-height: 100dvh;
+      display: flex; flex-direction: column;
+    }
+    .topbar {
+      padding: 14px 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .time { color: var(--muted); font-weight: 600; }
+    .title {
+      padding: 12px 16px; font-size: 18px; font-weight: 700;
+    }
+    .greeting {
+      padding: 12px 16px; color: var(--muted);
+    }
+    .quick {
+      display: grid; grid-template-columns: 1fr; gap: 10px; padding: 0 16px 8px;
+    }
+    .qbtn {
+      background: var(--btn); border: 1px solid #2a2a32; color: var(--text);
+      padding: 12px; border-radius: 12px; cursor: pointer; text-align: left;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .badge {
+      background: var(--accent); -webkit-background-clip: text; background-clip: text;
+      color: transparent; font-weight: 700;
+    }
+    .chat {
+      flex: 1; overflow-y: auto; padding: 8px 16px 120px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .bubble {
+      max-width: 85%; padding: 10px 12px; border-radius: 14px; line-height: 1.35;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+    .user { align-self: flex-end; background: #375a7f; }
+    .bot { align-self: flex-start; background: var(--card); border: 1px solid #2a2a32; }
+    .attach {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;
+    }
+    .chip {
+      background: #23232a; border: 1px dashed #363644; color: #cbd5e1;
+      padding: 6px 8px; border-radius: 10px; font-size: 12px;
+    }
+    .composer {
+      position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
+      width: 100%; max-width: 520px; padding: 0 10px;
+    }
+    .composer-inner {
+      background: var(--card); border: 1px solid #2a2a32; border-radius: 16px;
+      display: flex; gap: 8px; padding: 8px; align-items: center;
+    }
+    .input {
+      flex: 1; background: transparent; border: none; color: var(--text);
+      font-size: 16px; outline: none;
+    }
+    .btn {
+      background: var(--primary); color: white; border: none; border-radius: 12px;
+      padding: 10px 14px; cursor: pointer; font-weight: 700;
+    }
+    .ghost {
+      background: transparent; border: 1px solid #2a2a32; color: #cbd5e1;
+    }
+    .hint { color: var(--muted); font-size: 12px; padding: 6px 2px; }
+    @media(min-width: 480px) {
+      .quick { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="time">15:06</div>
+    </div>
+    <div class="title">Cuộc trò chuyện mới</div>
+    <div class="greeting">Xin chào! Chúng ta bắt đầu thôi nào, Dũng.</div>
+
+    <div class="quick">
+      <button class="qbtn" id="btn-image">
+        <span>Tạo một hình ảnh</span>
+        <span>🖼️</span>
+      </button>
+      <button class="qbtn" id="btn-draft">
+        <span>Viết bản thảo đầu tiên</span>
+        <span>✍️</span>
+      </button>
+      <button class="qbtn" id="btn-chat">
+        <span>Nhắn tin</span>
+        <span class="badge">Smart</span>
+      </button>
+    </div>
+
+    <div class="chat" id="chat"></div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <button class="btn ghost" id="pick">Đính kèm</button>
+        <input id="file" type="file" multiple hidden />
+        <input id="msg" class="input" placeholder="Nhắn gì đó..." />
+        <button class="btn" id="send">Gửi</button>
+      </div>
+      <div class="hint" id="attachHint"></div>
+    </div>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById("chat");
+    const msgEl = document.getElementById("msg");
+    const fileEl = document.getElementById("file");
+    const pickEl = document.getElementById("pick");
+    const sendEl = document.getElementById("send");
+    const attachHintEl = document.getElementById("attachHint");
+    const btnImage = document.getElementById("btn-image");
+    const btnDraft = document.getElementById("btn-draft");
+    const btnChat = document.getElementById("btn-chat");
+
+    let sessionId = null;
+    let pendingFiles = []; // { uri, mimeType, displayName }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, opts);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function bubble(text, who = "bot") {
+      const b = document.createElement("div");
+      b.className = `bubble ${who}`;
+      b.textContent = text;
+      chatEl.appendChild(b);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return b;
+    }
+
+    function filesChips(files) {
+      const wrap = document.createElement("div");
+      wrap.className = "attach";
+      for (const f of files) {
+        const c = document.createElement("div");
+        c.className = "chip";
+        c.textContent = `${f.displayName || "Tệp"} (${f.mimeType})`;
+        wrap.appendChild(c);
+      }
+      return wrap;
+    }
+
+    function setAttachHint() {
+      if (pendingFiles.length === 0) {
+        attachHintEl.textContent = "";
+      } else {
+        attachHintEl.textContent = `Sẽ gửi kèm ${pendingFiles.length} tệp.`;
+      }
+    }
+
+    async function init() {
+      const s = await api("/api/session", { method: "POST" });
+      sessionId = s.sessionId;
+    }
+
+    pickEl.addEventListener("click", () => fileEl.click());
+
+    fileEl.addEventListener("change", async () => {
+      if (!fileEl.files?.length) return;
+      const fd = new FormData();
+      for (const f of fileEl.files) fd.append("files", f);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      pendingFiles.push(...data.files);
+      setAttachHint();
+      // Hiển thị chip trong luồng chat (chỉ preview)
+      const wrap = filesChips(data.files);
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      fileEl.value = "";
+    });
+
+    sendEl.addEventListener("click", async () => {
+      const text = msgEl.value.trim();
+      if (!text && pendingFiles.length === 0) return;
+
+      // Hiển thị bong bóng user
+      const u = bubble(text || "(gửi tệp)", "user");
+      if (pendingFiles.length) {
+        chatEl.appendChild(filesChips(pendingFiles));
+      }
+      msgEl.value = "";
+
+      try {
+        const data = await api("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, text, files: pendingFiles })
+        });
+        bubble(data.text, "bot");
+      } catch (e) {
+        bubble("⚠️ Lỗi gửi yêu cầu.", "bot");
+      } finally {
+        // Reset tệp sau khi gửi
+        pendingFiles = [];
+        setAttachHint();
+      }
+    });
+
+    // Quick actions
+    btnImage.addEventListener("click", () => {
+      msgEl.value = "Hãy giúp tôi viết một prompt thật chi tiết để tạo ảnh (mục tiêu, bối cảnh, phong cách, ánh sáng, ống kính, tỉ lệ khung hình). Chủ đề: ";
+      msgEl.focus();
+    });
+
+    btnDraft.addEventListener("click", () => {
+      msgEl.value = "Viết bản thảo đầu tiên (giọng điệu, độc giả, độ dài, dàn ý 3 phần). Chủ đề: ";
+      msgEl.focus();
+    });
+
+    btnChat.addEventListener("click", () => {
+      msgEl.value = "";
+      msgEl.focus();
+    });
+
+    init();
+  </script>
+</body>
+</html>

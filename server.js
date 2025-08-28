@@ -3,8 +3,11 @@ import cors from "cors";
 import multer from "multer";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
-// ✅ bản mới chuẩn SDK
-import { GoogleGenerativeAI, GoogleAIFileManager } from "@google/generative-ai";
+// Cho phần chat
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Cho phần upload file
+import { GoogleAIFileManager } from "@google/generative-ai/server";
 
 const app = express();
 app.use(cors());
